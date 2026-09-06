@@ -25,4 +25,4 @@ VRChat 官方服务状态监控插件（AstrBot）。
 
 ## License
 
-MIT
+AGPL-3.0（沿用仓库模板的 LICENSE）。
