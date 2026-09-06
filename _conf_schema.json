@@ -1,0 +1,20 @@
+{
+  "poll_interval_seconds": {
+    "description": "轮询间隔（秒）",
+    "type": "int",
+    "default": 300,
+    "hint": "最小 60 秒；修改后需重载插件生效。"
+  },
+  "proxy": {
+    "description": "HTTP 代理",
+    "type": "string",
+    "default": "",
+    "hint": "留空直连；填写如 http://127.0.0.1:7890。"
+  },
+  "enabled": {
+    "description": "启用自动轮询",
+    "type": "bool",
+    "default": true,
+    "hint": "关闭后仍可用 /vrcstatus status 与 /vrcstatus check 手动查询。"
+  }
+}

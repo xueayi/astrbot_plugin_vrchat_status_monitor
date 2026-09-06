@@ -1,0 +1,13 @@
+name: astrbot_plugin_vrchat_status_monitor
+display_name: VRChat 服务状态监控
+desc: 定期拉取 status.vrchat.com 官方状态页，检测整体状态、组件、事件与维护的变化，推送到绑定会话。
+tags:
+  - vrchat
+  - status
+  - push
+version: 1.0.0
+author: xueayi
+repo: https://github.com/xueayi/astrbot_plugin_vrchat_status_monitor
+astrbot_version: ">=4.5.7"
+support_platforms:
+  - aiocqhttp
