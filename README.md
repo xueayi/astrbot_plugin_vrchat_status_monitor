@@ -17,7 +17,13 @@ VRChat 官方服务状态监控插件（AstrBot）。
 
 - `poll_interval_seconds`：轮询间隔，默认 300 秒（最小 60）
 - `proxy`：HTTP 代理（可选）
+- `utc_offset_hours`：消息时间戳的时区偏移，默认 8（UTC+8）
 - `enabled`：是否启用自动轮询
+
+## 说明
+
+- 推送失败时会保留本轮检测结果，下一轮自动重试，不会丢失变更。
+- `/vrcstatus bind` 对会话内所有成员开放（状态页是公开数据）；如需限制，可在 AstrBot 中为该指令配置权限。
 
 ## 安装
 
