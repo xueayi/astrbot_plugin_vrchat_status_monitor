@@ -23,7 +23,12 @@ def load(path: str | Path) -> dict | None:
 
 
 def save(path: str | Path, data: dict) -> None:
-    """保存状态到文件，自动创建父目录."""
+    """保存状态到文件，自动创建父目录。
+
+    先写入临时文件再原子替换，避免进程中断留下损坏的 JSON。
+    """
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    tmp = p.with_name(p.name + ".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    tmp.replace(p)

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 from pathlib import Path
 
 from astrbot.api import AstrBotConfig, logger, star
@@ -23,9 +22,13 @@ class Main(star.Star):
     def __init__(self, context: star.Context, config: AstrBotConfig) -> None:
         super().__init__(context, config)
         self.config = config
-        self.state_path = Path(get_astrbot_plugin_data_path()) / PLUGIN_NAME / "state.json"
+        self.state_path = (
+            Path(get_astrbot_plugin_data_path()) / PLUGIN_NAME / "state.json"
+        )
         self._poll_task: asyncio.Task | None = None
         self._stop_event: asyncio.Event | None = None
+        # 轮询循环与 /vrcstatus check 可能并发触发检测，加锁避免重复推送
+        self._check_lock = asyncio.Lock()
 
     @filter.on_astrbot_loaded()
     async def on_loaded(self, *args, **kwargs) -> None:
@@ -44,7 +47,9 @@ class Main(star.Star):
         if self._poll_task and not self._poll_task.done():
             return
         self._stop_event = asyncio.Event()
-        interval = max(MIN_POLL_INTERVAL, int(self.config.get("poll_interval_seconds", 300)))
+        interval = max(
+            MIN_POLL_INTERVAL, int(self.config.get("poll_interval_seconds", 300))
+        )
         self._poll_task = asyncio.create_task(self._poll_loop(interval))
 
     async def _poll_loop(self, interval: int) -> None:
@@ -60,26 +65,48 @@ class Main(star.Star):
                 pass
 
     async def check_once(self) -> int:
-        """执行一轮检测，返回发现的变更数。首轮只保存状态不推送。"""
-        old = state_store.load(self.state_path)
-        new = await fetcher.fetch(self.config.get("proxy", "") or None)
-        if new is None:
-            return -1
+        """执行一轮检测。
 
-        changes = detector.detect(None if old is None else old, new)
-        state_store.save(self.state_path, new)
+        首轮只保存状态不推送。仅在变更成功推送（或无需推送）后才保存新
+        状态，推送全部失败时保留旧状态，下一轮会重新检测并重试推送；
+        部分目标成功时同样保存，避免已成功的目标收到重复推送。
 
-        if not changes:
-            return 0
+        Returns:
+            发现的变更数；无变化返回 0；拉取失败返回 -1；检测到变更但
+            推送全部失败返回 -2。
+        """
+        async with self._check_lock:
+            old = state_store.load(self.state_path)
+            new = await fetcher.fetch(self.config.get("proxy", "") or None)
+            if new is None:
+                return -1
 
-        text = formatter.format_changes(changes)
-        targets = await self._targets()
-        for umo in targets:
-            try:
-                await self.context.send_message(umo, MessageChain().message(text))
-            except Exception as e:
-                logger.error(f"[{PLUGIN_NAME}] 推送失败 {umo}: {e}")
-        return len(changes)
+            changes = detector.detect(old, new)
+            if not changes:
+                state_store.save(self.state_path, new)
+                return 0
+
+            text = formatter.format_changes(
+                changes,
+                utc_offset=int(self.config.get("utc_offset_hours", 8) or 8),
+            )
+            targets = await self._targets()
+            if not targets:
+                state_store.save(self.state_path, new)
+                return len(changes)
+
+            sent = 0
+            for umo in targets:
+                try:
+                    await self.context.send_message(umo, MessageChain().message(text))
+                    sent += 1
+                except Exception as e:
+                    logger.error(f"[{PLUGIN_NAME}] 推送失败 {umo}: {e}")
+
+            if not sent:
+                return -2
+            state_store.save(self.state_path, new)
+            return len(changes)
 
     async def _targets(self) -> list[str]:
         bound = await self.get_kv_data(KV_TARGETS_KEY, [])
@@ -126,14 +153,23 @@ class Main(star.Star):
         if summary is None:
             yield event.plain_result("VRChat 状态查询失败，请稍后再试。")
             return
-        yield event.plain_result(formatter.format_summary(summary))
+        yield event.plain_result(
+            formatter.format_summary(
+                summary,
+                utc_offset=int(self.config.get("utc_offset_hours", 8) or 8),
+            )
+        )
 
     @vrcstatus.command("check")
     async def cmd_check(self, event: AstrMessageEvent):
         """立即执行一次变更检测（调试用）。"""
         count = await self.check_once()
-        if count < 0:
+        if count == -1:
             yield event.plain_result("检测失败：拉取 VRChat 状态失败。")
+        elif count == -2:
+            yield event.plain_result(
+                "检测到状态变化，但推送全部失败，将在下轮自动重试。"
+            )
         elif count == 0:
             yield event.plain_result("检测完成，无状态变化。")
         else:
