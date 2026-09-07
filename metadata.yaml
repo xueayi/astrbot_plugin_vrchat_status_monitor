@@ -5,7 +5,7 @@ tags:
   - vrchat
   - status
   - push
-version: 1.0.0
+version: 1.0.1
 author: xueayi
 repo: https://github.com/xueayi/astrbot_plugin_vrchat_status_monitor
 astrbot_version: ">=4.5.7"
