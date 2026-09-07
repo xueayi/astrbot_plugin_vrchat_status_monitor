@@ -11,6 +11,12 @@
     "default": "",
     "hint": "留空直连；填写如 http://127.0.0.1:7890。"
   },
+  "utc_offset_hours": {
+    "description": "时区偏移（小时）",
+    "type": "int",
+    "default": 8,
+    "hint": "消息中时间的时区偏移，北京时间填 8。"
+  },
   "enabled": {
     "description": "启用自动轮询",
     "type": "bool",
